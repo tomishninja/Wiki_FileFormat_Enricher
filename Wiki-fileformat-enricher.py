@@ -1,15 +1,22 @@
 import re
 import json
-from ollama import Client
+
+USE_LLM = True
+if (USE_LLM):
+    from ollama import Client
 
 # Define the file where we will save the parsed metadata
 OUTPUT_FILENAME = "parsed_metadata.txt"
 
 def ollama_generate(model: str, prompt: str, host: str) -> str:
-    """Send a generate request to Ollama and return plain text response."""
-    client = Client(host=host.rstrip("/"))
-    payload = client.generate(model=model, prompt=prompt)
-    return payload.get("response", "").strip()
+    try:
+        """Send a generate request to Ollama and return plain text response."""
+        client = Client(host=host.rstrip("/"))
+        payload = client.generate(model=model, prompt=prompt)
+        return payload.get("response", "").strip()
+    except Exception as e:
+        print(f"Error communicating with Ollama: {e}")
+        return "ERROR"
 
 def parse_header(line: str) -> str | None:
     """
@@ -251,45 +258,14 @@ def extract_file_info_revised(text: str) -> list[dict]:
 
                         ex = ex.strip()
                         
-                        # Should output: Input + "[Encoding]", "[Human Generated]", "[Human-Readable]", "[Suggested Role]"`
-                        llm_output = process_data_stream(ex, description, header)
-                        print(f"LLM Output: \n{llm_output}")
+                        # if the LLM is to be used.
+                        if(not USE_LLM):
+                            # Should output: Input + "[Encoding]", "[Human Generated]", "[Human-Readable]", "[Suggested Role]"`
+                            llm_output = process_data_stream(ex, description, header)
+                            print(f"LLM Output: \n{llm_output}")
 
-                        # if the data returned is not valid
-                        if (not llm_output) or llm_output.endswith('ERROR'):
-                            file_data.append({
-                                'Identifier': ex,
-                                'Description': description,
-                                'Type': header,
-                                'Encoding': "ERROR",
-                                'Human Generated': "ERROR",
-                                'Human-Readable': "ERROR",
-                                'Suggested Role': "ERROR"
-                            })
-                        else:
-                            try:
-                                # Append to the file data
-                                output_file.write(llm_output + "\n")
-
-                                llm_output_data = llm_output.split(",")
-                                llm_output_data = [item.strip().strip('"') for item in llm_output_data]
-
-                                # Remove the first three items which are the input data, we only want the analysis results
-                                llm_output_data = llm_output_data[3:]
-
-                                file_data.append({
-                                    'Identifier': ex,
-                                    'Description': description,
-                                    'Type': header,
-                                    'Encoding': llm_output_data[0],
-                                    'Human Generated': llm_output_data[1],
-                                    'Human-Readable': llm_output_data[2],
-                                    'Suggested Role': llm_output_data[3]
-                                })
-                            except Exception as e:
-                                print(f"Error processing line: {line}")
-                                print(f"LLM Output: {llm_output}")
-                                print(f"Exception: {e}")
+                            # if the data returned is not valid
+                            if (not llm_output) or llm_output.endswith('ERROR'):
                                 file_data.append({
                                     'Identifier': ex,
                                     'Description': description,
@@ -299,6 +275,45 @@ def extract_file_info_revised(text: str) -> list[dict]:
                                     'Human-Readable': "ERROR",
                                     'Suggested Role': "ERROR"
                                 })
+                            else:
+                                try:
+                                    # Append to the file data
+                                    output_file.write(llm_output + "\n")
+
+                                    llm_output_data = llm_output.split(",")
+                                    llm_output_data = [item.strip().strip('"') for item in llm_output_data]
+
+                                    # Remove the first three items which are the input data, we only want the analysis results
+                                    llm_output_data = llm_output_data[3:]
+
+                                    file_data.append({
+                                        'Identifier': ex,
+                                        'Description': description,
+                                        'Type': header,
+                                        'Encoding': llm_output_data[0],
+                                        'Human Generated': llm_output_data[1],
+                                        'Human-Readable': llm_output_data[2],
+                                        'Suggested Role': llm_output_data[3]
+                                    })
+                                except Exception as e:
+                                    print(f"Error processing line: {line}")
+                                    print(f"LLM Output: {llm_output}")
+                                    print(f"Exception: {e}")
+                                    file_data.append({
+                                        'Identifier': ex,
+                                        'Description': description,
+                                        'Type': header,
+                                        'Encoding': "ERROR",
+                                        'Human Generated': "ERROR",
+                                        'Human-Readable': "ERROR",
+                                        'Suggested Role': "ERROR"
+                                    })
+                        else:
+                            file_data.append({
+                                'Identifier': ex,
+                                'Description': description,
+                                'Type': header
+                            })
 
     return file_data
 
