@@ -1,10 +1,15 @@
 import re
-import os
 import json
-from CodeAnaylisis import ollama_generate
+from ollama import Client
 
 # Define the file where we will save the parsed metadata
 OUTPUT_FILENAME = "parsed_metadata.txt"
+
+def ollama_generate(model: str, prompt: str, host: str) -> str:
+    """Send a generate request to Ollama and return plain text response."""
+    client = Client(host=host.rstrip("/"))
+    payload = client.generate(model=model, prompt=prompt)
+    return payload.get("response", "").strip()
 
 def parse_header(line: str) -> str | None:
     """
@@ -62,7 +67,8 @@ def process_data_stream(file_extention: str, file_description: str, high_level_d
     # **Content Analysis Guidelines**
 
     1. **Encoding:** State the input data explicitly. 
-    2. **Human Readable:** Determine if the content is raw plaintext, or if it is deliberately encoded/obfuscated 
+    2. **Human Readable:** Determine if it is deliberately encoded/obfuscated so that it is difficult for a human to read without decoding it first, 
+    for example if it is a binary file or if the text is encoded in some way or the data is unstuctured or if it is not designed to be read by a human.
     (e.g., Base64, ROT13, hex dump, etc.). State this explicitly as a "Yes", "No" or "Maybe" Value
     3. **Human Generated:** Is it expected that this type of file is produced by a human (or a LLM) or if it is metadata which is machine written machine, answer as **Yes**, **No**, **Maybe**.
     4. **Suggested Role:** Based on the above, suggest a role that someone revewing this file would be best suited to have, for example if it is source code than a sinor software engineer would be fit.
@@ -246,7 +252,7 @@ def extract_file_info_revised(text: str) -> list[dict]:
                         ex = ex.strip()
                         
                         # Should output: Input + "[Encoding]", "[Human Generated]", "[Human-Readable]", "[Suggested Role]"`
-                        llm_output = process_data_stream(ext, description, header)
+                        llm_output = process_data_stream(ex, description, header)
                         print(f"LLM Output: \n{llm_output}")
 
                         # if the data returned is not valid
